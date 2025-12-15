@@ -8,7 +8,8 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENVOICE_URL = os.getenv("OPENVOICE_URL", "https://ffmpeg-9xhs.onrender.com")
 
-client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
+client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 
 def load_portal_text(portal_id: str) -> str:
     base_path = os.path.join(os.path.dirname(__file__), "..", "portals")
