@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory="static"), name="static")
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import chat, portal
 import os
