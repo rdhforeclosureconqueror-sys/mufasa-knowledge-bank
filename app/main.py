@@ -2,44 +2,65 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.routes import chat, portal
+import os
 
 # 1️⃣ Initialize FastAPI app
 app = FastAPI(
     title="Mufasa Knowledge Bank API",
-    description="Backend intelligence for the Prince of Pan-Africa platform — integrating text, voice, and image AI features.",
+    description=(
+        "Backend intelligence for the Prince of Pan-Africa platform — "
+        "integrating text, voice, and image AI features aligned with the Maat principles."
+    ),
     version="1.0.0",
 )
 
-# 2️⃣ Allow cross-origin access (so your frontend on Render can call the API)
+# 2️⃣ Configure CORS (Cross-Origin Resource Sharing)
+# You can later restrict this to your frontend URL, e.g., ["https://prince-of-pan-africa.onrender.com"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can later tighten this to your Render front-end URL
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 3️⃣ Mount static folder for images, audio, etc.
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# 3️⃣ Ensure static directory exists
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+os.makedirs(STATIC_DIR, exist_ok=True)
 
-# 4️⃣ Include routers
+# 4️⃣ Mount static folder for images, audio, and other assets
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# 5️⃣ Include routers
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])
 app.include_router(portal.router, prefix="/portal", tags=["Portals"])
 
-# 5️⃣ Root endpoint (for quick status check)
+# 6️⃣ Root endpoint (for quick status check)
 @app.get("/")
 def root():
     return {
         "status": "ok",
+        "service": "Mufasa Knowledge Bank",
+        "frontend": "Prince of Pan-Africa",
         "message": "Mufasa Knowledge Bank is live. Visit /docs for API routes.",
     }
 
-# 6️⃣ Health check endpoint
+# 7️⃣ Health check endpoint
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "Mufasa Knowledge Bank"}
+    return {"ok": True, "service": "Mufasa Knowledge Bank", "environment": "production"}
 
-# 7️⃣ Startup event log
+# 8️⃣ Info endpoint (for debugging or admin dashboard)
+@app.get("/info")
+def info():
+    return {
+        "app_name": app.title,
+        "version": app.version,
+        "static_path": "/static",
+        "routes": [route.path for route in app.routes],
+    }
+
+# 9️⃣ Startup event log
 @app.on_event("startup")
 async def startup_event():
     print("🔥 Mufasa Knowledge Bank is awake and ready to serve the Pride!")
