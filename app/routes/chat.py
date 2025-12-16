@@ -15,14 +15,17 @@ STATIC_AUDIO_DIR = Path("app/static/audio")
 STATIC_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 MUFASA_MODEL = "gpt-4o-mini"
-AIVOICE_BASE_URL = settings.AIVOICE_API or "https://aivoice-wmrv.onrender.com"
-AIVOICE_API_KEY = os.getenv("AIVOICE_API_KEY", "")
+AIVOICE_BASE_URL = settings.AIVOICE_BASE_URL
+AIVOICE_API_KEY = settings.AIVOICE_API_KEY
 
 
 # === Helpers ===
 def aivoice_headers():
     """Return authentication headers for aiVoice"""
-    return {"X-AIVOICE-KEY": AIVOICE_API_KEY, "Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json"}
+    if AIVOICE_API_KEY:
+        headers["X-AIVOICE-KEY"] = AIVOICE_API_KEY
+    return headers
 
 
 def generate_audio_filename(ext="mp3"):
