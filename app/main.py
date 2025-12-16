@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.routes import chat, portal
+from app.routes import chat, portal, voice
 import os
 
 # 1️⃣ Initialize FastAPI app
@@ -18,7 +18,11 @@ app = FastAPI(
 # You can later restrict this to your frontend URL, e.g., ["https://prince-of-pan-africa.onrender.com"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://prince-of-pan-africa.onrender.com",
+        "https://mufasa-knowledge-bank.onrender.com",
+        "*"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -34,6 +38,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # 5️⃣ Include routers
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])
 app.include_router(portal.router, prefix="/portal", tags=["Portals"])
+app.include_router(voice.router, prefix="/api/voice", tags=["Voice"])  # 👈 new addition
 
 # 6️⃣ Root endpoint (for quick status check)
 @app.get("/")
