@@ -68,43 +68,43 @@ def openai_response(prompt: str) -> str:
 # ==========================================================
 # 💬 1️⃣ TEXT CHAT → GPT → (Optional TTS)
 # ==========================================================
-@router.post("/message")
-async def generate_openai_response(payload: dict):
+@router.post("/tts")
+async def text_to_speech(payload: dict):
     """
-    Generate Mufasa text reply and (optionally) audio reply via aiVoice.
+    Convert text into speech only (frontend 'Play Voice' button).
     """
-    message = payload.get("message", "").strip()
-    make_voice = payload.get("voice", False)
-    voice_model = payload.get("voice_model", "alloy")
+    text = payload.get("text", "").strip()
+    voice = payload.get("voice_model", "alloy")
 
-    if not message:
-        raise HTTPException(status_code=400, detail="Message is required.")
+    if not text:
+        raise HTTPException(status_code=400, detail="No text provided for TTS.")
 
-    ai_text = openai_response(message)
-    audio_url = None
+    print(f"🔊 Generating TTS for voice: {voice}")
 
-    # 🎙️ Optional voice synthesis
-    if make_voice:
-        try:
-            tts_response = requests.post(
-                f"{AIVOICE_BASE_URL}/tts",
-                json={"text": ai_text, "format": "mp3", "voice": voice_model},
-                headers=aivoice_headers(),
-                timeout=45,
-            )
-            if tts_response.status_code == 200:
-                audio_url = save_audio_file(tts_response.content)
-            else:
-                print("⚠️ aiVoice TTS failed:", tts_response.text)
-        except Exception as e:
-            print("🎤 TTS generation failed:", e)
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "X-AIVOICE-KEY": AIVOICE_API_KEY,
+        }
 
-    return {
-        "reply": ai_text,
-        "audio_url": audio_url,
-        "voice": voice_model,
-        "source": "MufasaKnowledgeBank",
-    }
+        tts_response = requests.post(
+            f"{AIVOICE_BASE_URL}/tts",
+            json={"text": text, "format": "mp3", "voice": voice},
+            headers=headers,
+            timeout=45,
+        )
+
+        if tts_response.status_code == 200:
+            audio_url = save_audio_file(tts_response.content)
+            print(f"🎧 Audio generated: {audio_url}")
+            return {"audio_url": audio_url, "voice": voice}
+        else:
+            print(f"⚠️ TTS failed with {tts_response.status_code}: {tts_response.text}")
+            raise HTTPException(status_code=500, detail=f"TTS failed: {tts_response.text}")
+
+    except Exception as e:
+        print("❌ TTS Exception:", e)
+        raise HTTPException(status_code=500, detail=f"TTS failed: {e}")
 
 
 # ==========================================================
