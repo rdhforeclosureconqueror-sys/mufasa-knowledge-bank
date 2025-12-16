@@ -15,7 +15,7 @@ STATIC_AUDIO_DIR = Path("app/static/audio")
 STATIC_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 MUFASA_MODEL = "gpt-4o-mini"
-AIVOICE_BASE_URL = settings.AIVOICE_API
+AIVOICE_BASE_URL = settings.AIVOICE_API_KEY
 AIVOICE_API_KEY = os.getenv("AIVOICE_API_KEY", "")
 
 # Initialize OpenAI client
