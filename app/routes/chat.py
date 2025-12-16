@@ -1,6 +1,6 @@
 # app/routes/chat.py
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from openai import OpenAI
+import openai
 import requests
 import tempfile
 import os
@@ -15,11 +15,12 @@ STATIC_AUDIO_DIR = Path("app/static/audio")
 STATIC_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 MUFASA_MODEL = "gpt-4o-mini"
-AIVOICE_BASE_URL = settings.AIVOICE_API
-AIVOICE_API_KEY = os.getenv("AIVOICE_API_KEY", "")
+AIVOICE_BASE_URL = settings.AIVOICE_BASE_URL
+AIVOICE_API_KEY = settings.AIVOICE_API_KEY
+OPENAI_API_KEY = settings.OPENAI_API_KEY
 
 # Initialize OpenAI client
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
+openai.api_key = OPENAI_API_KEY
 
 
 # === Helpers ===
@@ -47,7 +48,8 @@ def save_audio_file(audio_bytes, ext="mp3"):
 def openai_response(prompt: str) -> str:
     """Generate text reply from Mufasa (OpenAI GPT)"""
     try:
-        completion = client.chat.completions.create(
+        print(f"🦁 Mufasa thinking about: {prompt}")
+        completion = openai.ChatCompletion.create(
             model=MUFASA_MODEL,
             messages=[
                 {
@@ -55,16 +57,18 @@ def openai_response(prompt: str) -> str:
                     "content": (
                         "You are Mufasa, the ancient voice of Pan-African wisdom. "
                         "Speak with majesty, history, and reverence for Africa’s legacy. "
-                        "Inspire unity, truth, and learning."
+                        "Inspire unity, truth, and learning with every response."
                     ),
                 },
                 {"role": "user", "content": prompt},
             ],
             temperature=0.8,
         )
-        return completion.choices[0].message.content.strip()
+        reply = completion.choices[0].message.content.strip()
+        print(f"🦁 Mufasa replied: {reply[:80]}...")  # log first part only
+        return reply
     except Exception as e:
-        print("❌ OpenAI error:", e)
+        print(f"❌ OpenAI error: {e}")
         raise HTTPException(status_code=500, detail="Mufasa failed to think.")
 
 
@@ -89,13 +93,13 @@ async def generate_openai_response(payload: dict):
     if not message:
         raise HTTPException(status_code=400, detail="No message provided.")
 
-    print(f"🦁 Thinking about: {message}")
     ai_text = openai_response(message)
     audio_url = None
 
     if make_voice:
         try:
-            print(f"🎤 Sending text to aiVoice ({voice_model})")
+            print(f"🎤 Sending to aiVoice ({voice_model}) → {AIVOICE_BASE_URL}/tts")
+            print(f"🔑 Using header X-AIVOICE-KEY: {AIVOICE_API_KEY[:10]}******")
             tts_response = requests.post(
                 f"{AIVOICE_BASE_URL}/tts",
                 json={"text": ai_text, "format": "mp3", "voice": voice_model},
@@ -107,10 +111,10 @@ async def generate_openai_response(payload: dict):
                 audio_url = save_audio_file(tts_response.content)
                 print(f"✅ Voice generated: {audio_url}")
             else:
-                print(f"❌ TTS failed: {tts_response.status_code} {tts_response.text}")
+                print(f"❌ aiVoice TTS error {tts_response.status_code}: {tts_response.text}")
 
         except Exception as e:
-            print("❌ Voice generation error:", e)
+            print(f"❌ Voice generation error: {e}")
 
     return {
         "reply": ai_text,
@@ -123,7 +127,7 @@ async def generate_openai_response(payload: dict):
 @router.post("/tts")
 async def text_to_speech(payload: dict):
     """
-    Convert text to speech (manual button).
+    Convert text to speech manually (when user clicks 'Play Voice').
     """
     text = payload.get("text", "").strip()
     voice = payload.get("voice_model", "alloy")
@@ -132,7 +136,7 @@ async def text_to_speech(payload: dict):
         raise HTTPException(status_code=400, detail="No text provided for TTS.")
 
     try:
-        print(f"🎧 Generating TTS for: {voice}")
+        print(f"🎧 Generating TTS for {voice} via {AIVOICE_BASE_URL}/tts")
         tts_response = requests.post(
             f"{AIVOICE_BASE_URL}/tts",
             json={"text": text, "format": "mp3", "voice": voice},
@@ -142,13 +146,14 @@ async def text_to_speech(payload: dict):
 
         if tts_response.status_code == 200:
             audio_url = save_audio_file(tts_response.content)
-            print(f"✅ TTS saved at: {audio_url}")
+            print(f"✅ Saved TTS file: {audio_url}")
             return {"audio_url": audio_url, "voice": voice}
         else:
-            print(f"❌ TTS failed: {tts_response.status_code} {tts_response.text}")
+            print(f"❌ aiVoice returned {tts_response.status_code}: {tts_response.text}")
             raise HTTPException(status_code=500, detail="TTS failed to generate.")
+
     except Exception as e:
-        print("❌ TTS Error:", e)
+        print(f"❌ TTS Exception: {e}")
         raise HTTPException(status_code=500, detail=f"TTS failed: {e}")
 
 
@@ -162,18 +167,21 @@ async def handle_voice_input(file: UploadFile = File(...)):
             tmp.write(await file.read())
             tmp_path = tmp.name
 
-        # Step 1: Transcribe audio → text
+        # Step 1: Transcribe
+        print("🎙️ Transcribing voice input with OpenAI Whisper model...")
         with open(tmp_path, "rb") as audio_file:
-            transcription = client.audio.transcriptions.create(
+            transcription = openai.Audio.transcriptions.create(
                 model="gpt-4o-mini-transcribe",
                 file=audio_file,
             )
         user_text = transcription.text.strip()
+        print(f"🗣️ User said: {user_text}")
 
         # Step 2: Generate Mufasa reply
         ai_text = openai_response(user_text)
 
-        # Step 3: Generate TTS
+        # Step 3: Generate voice for reply
+        print(f"🎧 Generating aiVoice TTS from Mufasa reply → {AIVOICE_BASE_URL}/tts")
         tts_response = requests.post(
             f"{AIVOICE_BASE_URL}/tts",
             json={"text": ai_text, "format": "mp3", "voice": "alloy"},
@@ -184,8 +192,12 @@ async def handle_voice_input(file: UploadFile = File(...)):
         audio_url = None
         if tts_response.status_code == 200:
             audio_url = save_audio_file(tts_response.content)
+            print(f"✅ Voice reply saved: {audio_url}")
+        else:
+            print(f"❌ aiVoice TTS failed: {tts_response.status_code} {tts_response.text}")
 
         os.remove(tmp_path)
+
         return {
             "user_text": user_text,
             "reply": ai_text,
@@ -194,5 +206,5 @@ async def handle_voice_input(file: UploadFile = File(...)):
         }
 
     except Exception as e:
-        print("❌ Voice chat error:", e)
+        print(f"❌ Voice chat error: {e}")
         raise HTTPException(status_code=500, detail=f"Voice chat failed: {e}")
