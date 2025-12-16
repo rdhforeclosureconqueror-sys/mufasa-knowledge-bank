@@ -1,6 +1,6 @@
 # app/routes/chat.py
 from fastapi import APIRouter, UploadFile, File, HTTPException
-import openai
+from openai import OpenAI
 import requests
 import tempfile
 import os
@@ -15,8 +15,11 @@ STATIC_AUDIO_DIR = Path("app/static/audio")
 STATIC_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 MUFASA_MODEL = "gpt-4o-mini"
-AIVOICE_BASE_URL = settings.AIVOICE_BASE_URL
-AIVOICE_API_KEY = settings.AIVOICE_API_KEY
+AIVOICE_BASE_URL = settings.AIVOICE_API
+AIVOICE_API_KEY = os.getenv("AIVOICE_API_KEY", "")
+
+# Initialize OpenAI client
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 # === Helpers ===
@@ -44,7 +47,7 @@ def save_audio_file(audio_bytes, ext="mp3"):
 def openai_response(prompt: str) -> str:
     """Generate text reply from Mufasa (OpenAI GPT)"""
     try:
-        completion = openai.ChatCompletion.create(
+        completion = client.chat.completions.create(
             model=MUFASA_MODEL,
             messages=[
                 {
@@ -161,7 +164,7 @@ async def handle_voice_input(file: UploadFile = File(...)):
 
         # Step 1: Transcribe audio → text
         with open(tmp_path, "rb") as audio_file:
-            transcription = openai.Audio.transcriptions.create(
+            transcription = client.audio.transcriptions.create(
                 model="gpt-4o-mini-transcribe",
                 file=audio_file,
             )
