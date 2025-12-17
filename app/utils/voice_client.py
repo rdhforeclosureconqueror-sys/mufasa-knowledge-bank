@@ -1,6 +1,6 @@
 import httpx, os
 
-OPENVOICE_URL = os.getenv("OPENVOICE_URL", "https://ffmpeg-9xhs.onrender.com")
+OPENVOICE_URL = os.getenv("OPENVOICE_URL", "https://aivoice-wmrv.onrender.com")
 
 async def text_to_speech(text: str):
     async with httpx.AsyncClient() as client:
