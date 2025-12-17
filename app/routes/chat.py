@@ -1,6 +1,6 @@
 # app/routes/chat.py
 from fastapi import APIRouter, UploadFile, File, HTTPException
-import openai
+from openai import OpenAI
 import requests
 import tempfile
 import os
@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 from app.config import settings
 
+# === Router Init ===
 router = APIRouter()
 
 # === Constants ===
@@ -19,9 +20,8 @@ AIVOICE_BASE_URL = settings.AIVOICE_BASE_URL
 AIVOICE_API_KEY = settings.AIVOICE_API_KEY
 OPENAI_API_KEY = settings.OPENAI_API_KEY
 
-# Initialize OpenAI client
-openai.api_key = OPENAI_API_KEY
-
+# === Clients ===
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # === Helpers ===
 def aivoice_headers():
@@ -49,7 +49,7 @@ def openai_response(prompt: str) -> str:
     """Generate text reply from Mufasa (OpenAI GPT)"""
     try:
         print(f"🦁 Mufasa thinking about: {prompt}")
-        completion = openai.ChatCompletion.create(
+        completion = client.chat.completions.create(
             model=MUFASA_MODEL,
             messages=[
                 {
@@ -65,7 +65,7 @@ def openai_response(prompt: str) -> str:
             temperature=0.8,
         )
         reply = completion.choices[0].message.content.strip()
-        print(f"🦁 Mufasa replied: {reply[:80]}...")  # log first part only
+        print(f"🦁 Mufasa replied: {reply[:80]}...")
         return reply
     except Exception as e:
         print(f"❌ OpenAI error: {e}")
@@ -99,12 +99,12 @@ async def generate_openai_response(payload: dict):
     if make_voice:
         try:
             print(f"🎤 Sending to aiVoice ({voice_model}) → {AIVOICE_BASE_URL}/tts")
-            print(f"🔑 Using header X-AIVOICE-KEY: {AIVOICE_API_KEY[:10]}******")
             tts_response = requests.post(
                 f"{AIVOICE_BASE_URL}/tts",
                 json={"text": ai_text, "format": "mp3", "voice": voice_model},
                 headers=aivoice_headers(),
-                timeout=60,
+                timeout=45,
+                stream=True,
             )
 
             if tts_response.status_code == 200:
@@ -112,9 +112,14 @@ async def generate_openai_response(payload: dict):
                 print(f"✅ Voice generated: {audio_url}")
             else:
                 print(f"❌ aiVoice TTS error {tts_response.status_code}: {tts_response.text}")
+                raise HTTPException(
+                    status_code=tts_response.status_code,
+                    detail=f"aiVoice TTS failed: {tts_response.text}",
+                )
 
         except Exception as e:
             print(f"❌ Voice generation error: {e}")
+            raise HTTPException(status_code=500, detail=f"TTS service failed: {e}")
 
     return {
         "reply": ai_text,
@@ -142,6 +147,7 @@ async def text_to_speech(payload: dict):
             json={"text": text, "format": "mp3", "voice": voice},
             headers=aivoice_headers(),
             timeout=45,
+            stream=True,
         )
 
         if tts_response.status_code == 200:
@@ -168,10 +174,10 @@ async def handle_voice_input(file: UploadFile = File(...)):
             tmp_path = tmp.name
 
         # Step 1: Transcribe
-        print("🎙️ Transcribing voice input with OpenAI Whisper model...")
+        print("🎙️ Transcribing voice input with Whisper model...")
         with open(tmp_path, "rb") as audio_file:
-            transcription = openai.Audio.transcriptions.create(
-                model="gpt-4o-mini-transcribe",
+            transcription = client.audio.transcriptions.create(
+                model="whisper-1",
                 file=audio_file,
             )
         user_text = transcription.text.strip()
@@ -186,7 +192,8 @@ async def handle_voice_input(file: UploadFile = File(...)):
             f"{AIVOICE_BASE_URL}/tts",
             json={"text": ai_text, "format": "mp3", "voice": "alloy"},
             headers=aivoice_headers(),
-            timeout=60,
+            timeout=45,
+            stream=True,
         )
 
         audio_url = None
@@ -195,6 +202,10 @@ async def handle_voice_input(file: UploadFile = File(...)):
             print(f"✅ Voice reply saved: {audio_url}")
         else:
             print(f"❌ aiVoice TTS failed: {tts_response.status_code} {tts_response.text}")
+            raise HTTPException(
+                status_code=tts_response.status_code,
+                detail="aiVoice TTS request failed",
+            )
 
         os.remove(tmp_path)
 
