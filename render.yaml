@@ -9,5 +9,7 @@ services:
         sync: false
       - key: OPENVOICE_URL
         value: https://ffmpeg-9xhs.onrender.com
+      - key: ALLOWED_ORIGINS
+        value: https://prince-of-pan-africa.onrender.com,https://mufasa-knowledge-bank.onrender.com
       - key: PYTHON_VERSION
         value: 3.11

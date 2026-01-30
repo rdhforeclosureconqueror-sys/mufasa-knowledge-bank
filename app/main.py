@@ -15,14 +15,20 @@ app = FastAPI(
 )
 
 # 2️⃣ Configure CORS (Cross-Origin Resource Sharing)
-# You can later restrict this to your frontend URL, e.g., ["https://prince-of-pan-africa.onrender.com"]
+# You can later restrict this to your frontend URL via ALLOWED_ORIGINS.
+default_origins = [
+    "https://prince-of-pan-africa.onrender.com",
+    "https://mufasa-knowledge-bank.onrender.com",
+]
+raw_allowed_origins = os.getenv("ALLOWED_ORIGINS", "")
+allowed_origins = (
+    [origin.strip() for origin in raw_allowed_origins.split(",") if origin.strip()]
+    if raw_allowed_origins
+    else default_origins
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://prince-of-pan-africa.onrender.com",
-        "https://mufasa-knowledge-bank.onrender.com",
-        "*"
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
